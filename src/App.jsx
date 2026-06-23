@@ -329,7 +329,7 @@ export default function App() {
   const [page, setPage] = useState(1);
   const PER_PAGE = 100;
 
-  const fetchRepos = useCallback(async (tok, orgName) => {
+  const fetchRepos = useCallback(async (tok, accountName) => {
     setLoading(true);
     setError("");
     setRepos([]);
@@ -337,9 +337,24 @@ export default function App() {
     let all = [];
     let p = 1;
     try {
+      // First detect if this is a user or an org
+      const accountRes = await fetch(
+        `https://api.github.com/users/${accountName}`,
+        { headers: { Authorization: `token ${tok}`, Accept: "application/vnd.github.v3+json" } }
+      );
+      if (!accountRes.ok) {
+        const err = await accountRes.json();
+        throw new Error(err.message || `Account not found: ${accountName}`);
+      }
+      const accountData = await accountRes.json();
+      const isOrg = accountData.type === "Organization";
+      const baseUrl = isOrg
+        ? `https://api.github.com/orgs/${accountName}/repos?per_page=100&type=all&sort=pushed`
+        : `https://api.github.com/users/${accountName}/repos?per_page=100&type=all&sort=pushed`;
+
       while (true) {
         const res = await fetch(
-          `https://api.github.com/orgs/${orgName}/repos?per_page=100&page=${p}&type=all&sort=pushed`,
+          `${baseUrl}&page=${p}`,
           { headers: { Authorization: `token ${tok}`, Accept: "application/vnd.github.v3+json" } }
         );
         if (!res.ok) {
@@ -404,9 +419,9 @@ export default function App() {
       {/* Connect Panel */}
       {repos.length === 0 && !loading && (
         <div style={{ maxWidth: 520, margin: "80px auto", padding: 24 }}>
-          <div style={{ fontSize: 22, fontWeight: 700, marginBottom: 6, color: COLORS.text }}>Connect your GitHub Org</div>
+          <div style={{ fontSize: 22, fontWeight: 700, marginBottom: 6, color: COLORS.text }}>Connect your GitHub Account</div>
           <div style={{ fontSize: 13, color: COLORS.textMuted, marginBottom: 28, lineHeight: 1.6 }}>
-            Enter a GitHub Personal Access Token with <code style={{ background: COLORS.borderLight, padding: "1px 5px", borderRadius: 3, fontSize: 12 }}>read:org</code> and <code style={{ background: COLORS.borderLight, padding: "1px 5px", borderRadius: 3, fontSize: 12 }}>repo</code> scopes, and the org name to analyse.
+            Enter a GitHub Personal Access Token with <code style={{ background: COLORS.borderLight, padding: "1px 5px", borderRadius: 3, fontSize: 12 }}>repo</code> scope, and a GitHub username or organisation name. Works with both personal accounts and orgs.
           </div>
 
           {error && (
@@ -417,11 +432,11 @@ export default function App() {
 
           <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
             <div>
-              <label style={{ fontSize: 11, color: COLORS.textMuted, display: "block", marginBottom: 4, textTransform: "uppercase", letterSpacing: "0.06em" }}>GitHub Organisation</label>
+              <label style={{ fontSize: 11, color: COLORS.textMuted, display: "block", marginBottom: 4, textTransform: "uppercase", letterSpacing: "0.06em" }}>GitHub Username or Organisation</label>
               <input
                 value={orgInput}
                 onChange={e => setOrgInput(e.target.value)}
-                placeholder="e.g. f5devcentral"
+                placeholder="e.g. Tansikarus or f5devcentral"
                 style={{ width: "100%", background: COLORS.bg, border: `1px solid ${COLORS.border}`, borderRadius: 6, padding: "9px 12px", color: COLORS.text, fontSize: 13, outline: "none" }}
               />
             </div>
